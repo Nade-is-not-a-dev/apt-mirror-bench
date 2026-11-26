@@ -94,6 +94,16 @@ sudo apt-get update
 - `1` — no usable mirrors found
 - `2` — `--apply` without root on the system paths
 
+## Troubleshooting
+
+- `SSLCertVerificationError: certificate verify failed` when fetching the
+  mirror list: the system has no CA certificates installed (common in
+  minimal Docker images). Install them with
+  `apt-get install -y ca-certificates` — the tool also falls back to plain
+  HTTP for the mirror list if HTTPS fails.
+- `No usable mirrors found`: check the network/DNS, then try a smaller
+  `--limit` or a longer `--timeout`.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

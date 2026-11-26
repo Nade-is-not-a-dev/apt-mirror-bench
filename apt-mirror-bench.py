@@ -31,7 +31,7 @@ import time
 import urllib.error
 import urllib.request
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 USER_AGENT = "apt-mirror-bench/%s" % __version__
 
@@ -160,11 +160,29 @@ def _http_get(url, timeout=15):
         return resp.read()
 
 
+def _http_get_any(urls, timeout=15):
+    """Try each URL in order, return the first that works.
+
+    HTTPS is tried first; plain HTTP is the fallback for minimal images
+    that have no CA certificates installed (python's ssl then fails with
+    CERTIFICATE_VERIFY_FAILED even though the network is fine).
+    """
+    last_exc = None
+    for url in urls:
+        try:
+            return _http_get(url, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001 - try the next URL
+            last_exc = exc
+    raise last_exc
+
+
 def discover_mirrors(distro_id):
     """Return (mirrors, source_note). Mirrors are archive-root URLs."""
     if distro_id == "ubuntu":
         try:
-            raw = _http_get("https://mirrors.ubuntu.com/mirrors.txt", timeout=30)
+            raw = _http_get_any(["https://mirrors.ubuntu.com/mirrors.txt",
+                                 "http://mirrors.ubuntu.com/mirrors.txt"],
+                                timeout=30)
             mirrors = [ln.strip() for ln in raw.decode("utf-8", "replace").splitlines()
                        if ln.strip().startswith(("http://", "https://"))]
             if mirrors:
@@ -174,7 +192,8 @@ def discover_mirrors(distro_id):
                   "using built-in list" % exc, file=sys.stderr)
         return list(UBUNTU_FALLBACK_MIRRORS), "built-in fallback list"
     try:
-        raw = _http_get("https://www.debian.org/mirror/list", timeout=15)
+        raw = _http_get_any(["https://www.debian.org/mirror/list",
+                             "http://www.debian.org/mirror/list"], timeout=30)
         import re
         mirrors = sorted(set(
             m.rstrip("/") for m in
